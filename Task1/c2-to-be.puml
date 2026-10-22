@@ -1,0 +1,123 @@
+@startuml c2-to-be
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(passenger, "Пассажир")
+Person(driver, "Водитель")
+Person(corp, "Корпоративный клиент")
+
+System_Boundary(gofuture, "GoFuture Platform To-Be") {
+    Container_Boundary(b_strangler, "Strangler / Migration (выводится)") {
+        Container(acl, "Anti-Corruption Layer", "Adapter", "Адаптация моделей монолит <-> сервисы")
+        Container(monolith, "GoFuture Monolith", "Django", "Остаток логики на время миграции")
+        ContainerDb(db_mono, "Monolith DB", "PostgreSQL", "Единая БД на время миграции")
+    }
+    
+    Container_Boundary(b_target, "Target Platform (остаётся после миграции)") {
+        Container_Boundary(b_edge, "Edge") {
+            Container(api_gw, "API Gateway", "Kong/Nginx", "Старые REST-контракты, маршрутизация")
+        }
+
+        Container_Boundary(b_booking, "Booking") {
+            Container(booking, "Booking Service", "Python", "Заказы и жизненный цикл поездки")
+            ContainerDb(db_booking, "Booking DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_driver, "Driver") {
+            Container(drv, "Driver Service", "Python", "Водители, статусы, назначение")
+            ContainerDb(db_driver, "Driver DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_pricing, "Pricing") {
+            Container(pricing, "Pricing Service", "Python", "Динамическая цена")
+            ContainerDb(db_pricing, "Pricing DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_payments, "Payments") {
+            Container(payments, "Payments Service", "Python", "Платежи и выплаты")
+            ContainerDb(db_payments, "Payments DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_notify, "Notification") {
+            Container(notify, "Notification Service", "Python", "Push и уведомления")
+            ContainerDb(db_notify, "Notification DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_geo, "Geography") {
+            Container(geo, "Geography Service", "Python", "Геоданные и маршруты")
+            ContainerDb(db_geo, "Geography DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_analytics, "Analytics") {
+            Container(analytics, "Analytics Service", "Python", "События для аналитики")
+            ContainerDb(db_analytics, "Analytics DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_fraud, "Fraud") {
+            Container(fraud, "Fraud Service", "Python", "Антифрод")
+            ContainerDb(db_fraud, "Fraud DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_shared_data, "Shared Data") {
+            ContainerDb(redis, "Redis", "Cache", "Кеш гео и сессий")
+            ContainerDb(es, "Elasticsearch", "Search", "Геопоиск водителей")
+        }
+
+        Container_Boundary(b_messaging, "Messaging") {
+            ContainerQueue(kafka, "Kafka", "Event Bus", "Доменные события")
+        }
+    }
+}
+
+System_Ext(yandex_pay, "Яндекс Пэй", "Платёжный шлюз")
+System_Ext(yandex_maps, "Яндекс Карты", "Картографический сервис")
+System_Ext(fcm, "FCM", "Push-сервис Google")
+System_Ext(apns, "APNs", "Push-сервис Apple")
+System_Ext(huawei_push, "Huawei Push Kit", "Push-сервис Huawei")
+System_Ext(bank_api, "API Банка", "Банковские выплаты")
+
+Rel(passenger, api_gw, "HTTP/REST")
+Rel(driver, api_gw, "HTTP/REST")
+Rel(corp, api_gw, "HTTP/REST")
+
+Rel(api_gw, booking, "Маршрут на выделенный сервис")
+Rel(api_gw, drv, "Маршрут")
+Rel(api_gw, pricing, "Маршрут")
+Rel(api_gw, payments, "Маршрут")
+Rel(api_gw, notify, "Маршрут")
+Rel(api_gw, geo, "Маршрут")
+Rel(api_gw, monolith, "Ещё не выделенные пути")
+
+Rel(booking, acl, "Чтение/запись через ACL")
+Rel(drv, acl, "Чтение/запись через ACL")
+Rel(acl, monolith, "Адаптированные вызовы")
+Rel(monolith, db_mono, "ORM")
+
+Rel(booking, db_booking, "R/W")
+Rel(drv, db_driver, "R/W")
+Rel(pricing, db_pricing, "R/W")
+Rel(payments, db_payments, "R/W")
+Rel(notify, db_notify, "R/W")
+Rel(geo, db_geo, "R/W")
+Rel(analytics, db_analytics, "R/W")
+Rel(fraud, db_fraud, "R/W")
+
+Rel(geo, redis, "Кеш")
+Rel(drv, es, "Геопоиск")
+Rel(geo, es, "Индекс")
+
+Rel(booking, kafka, "Публикует события")
+Rel(drv, kafka, "Публикует/читает")
+Rel(pricing, kafka, "Публикует/читает")
+Rel(payments, kafka, "Публикует/читает")
+Rel(notify, kafka, "Читает")
+Rel(analytics, kafka, "Читает")
+Rel(fraud, kafka, "Читает")
+
+Rel(payments, yandex_pay, "Платежи пассажиров")
+Rel(payments, bank_api, "Выплаты водителям")
+Rel(geo, yandex_maps, "Карты")
+Rel(notify, fcm, "Push Android")
+Rel(notify, apns, "Push iOS")
+Rel(notify, huawei_push, "Push Huawei")
+
+@enduml
