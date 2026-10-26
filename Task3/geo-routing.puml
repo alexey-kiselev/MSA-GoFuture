@@ -1,0 +1,41 @@
+@startuml geo-routing
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Геомаршрутизация к ближайшему региону
+
+Person(user, "Пользователь")
+
+Container(geodns, "GeoDNS", "Route53 / Yandex DNS", "Ближайший живой регион")
+
+System_Boundary(ru, "Region RU") {
+    Container(gw_ru, "API Gateway RU")
+    Container(svc_ru, "Services + DB RU", "Home region for RU users")
+}
+
+System_Boundary(sg, "Region SG") {
+    Container(gw_sg, "API Gateway SG")
+    Container(svc_sg, "Services + DB SG")
+}
+
+System_Boundary(jkt, "Region JKT") {
+    Container(gw_jkt, "API Gateway JKT")
+    Container(svc_jkt, "Services + DB JKT")
+}
+
+System_Boundary(br, "Region BR") {
+    Container(gw_br, "API Gateway BR")
+    Container(svc_br, "Services + DB BR", "Home region for BR users")
+}
+
+Rel(user, geodns, "DNS lookup")
+Rel(geodns, gw_ru, "RU users / nearest")
+Rel(geodns, gw_sg, "SG users")
+Rel(geodns, gw_jkt, "SG failover")
+Rel(geodns, gw_br, "BR users")
+
+Rel(gw_ru, svc_ru, "Write stays in home region")
+Rel(gw_sg, svc_sg, "Write stays in home region")
+Rel(gw_jkt, svc_jkt, "Write stays in home region")
+Rel(gw_br, svc_br, "Write stays in home region")
+
+@enduml

@@ -1,0 +1,135 @@
+@startuml c2-security
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+AddElementTag("new", $bgColor="#FFCCCC", $borderColor="#CC0000", $fontColor="#000000")
+AddRelTag("new", $textColor="#CC0000", $lineColor="#CC0000")
+
+title C2: защита периметра на базе To-Be (новое выделено красным)
+
+Person(passenger, "Пассажир")
+Person(driver, "Водитель")
+Person(corp, "Корпоративный клиент")
+
+System_Boundary(gofuture, "GoFuture Platform To-Be") {
+    Container_Boundary(b_strangler, "Strangler / Migration (выводится)") {
+        Container(acl, "Anti-Corruption Layer", "Adapter", "Адаптация моделей монолит <-> сервисы")
+        Container(monolith, "GoFuture Monolith", "Django", "Остаток логики на время миграции")
+        ContainerDb(db_mono, "Monolith DB", "PostgreSQL", "Единая БД на время миграции")
+    }
+
+    Container_Boundary(b_target, "Target Platform (остаётся после миграции)") {
+        Container(waf, "WAF", "Cloud WAF", "OWASP-фильтр на входе", $tags="new")
+        Container(fw, "Firewall", "Network ACL/SG", "Сегментация сервисы/данные", $tags="new")
+
+        Container_Boundary(b_edge, "Edge") {
+            Container(api_gw, "API Gateway", "Kong/Nginx", "Старые REST-контракты, маршрутизация")
+        }
+
+        Container_Boundary(b_booking, "Booking") {
+            Container(booking, "Booking Service", "Python", "Заказы и жизненный цикл поездки")
+            ContainerDb(db_booking, "Booking DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_driver, "Driver") {
+            Container(drv, "Driver Service", "Python", "Водители, статусы, назначение")
+            ContainerDb(db_driver, "Driver DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_pricing, "Pricing") {
+            Container(pricing, "Pricing Service", "Python", "Динамическая цена")
+            ContainerDb(db_pricing, "Pricing DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_payments, "Payments") {
+            Container(payments, "Payments Service", "Python", "Платежи и выплаты")
+            ContainerDb(db_payments, "Payments DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_notify, "Notification") {
+            Container(notify, "Notification Service", "Python", "Push и уведомления")
+            ContainerDb(db_notify, "Notification DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_geo, "Geography") {
+            Container(geo, "Geography Service", "Python", "Геоданные и маршруты")
+            ContainerDb(db_geo, "Geography DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_analytics, "Analytics") {
+            Container(analytics, "Analytics Service", "Python", "События для аналитики")
+            ContainerDb(db_analytics, "Analytics DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_fraud, "Fraud") {
+            Container(fraud, "Fraud Service", "Python", "Антифрод")
+            ContainerDb(db_fraud, "Fraud DB", "PostgreSQL")
+        }
+
+        Container_Boundary(b_shared_data, "Shared Data") {
+            ContainerDb(redis, "Redis", "Cache", "Кеш гео и сессий")
+            ContainerDb(es, "Elasticsearch", "Search", "Геопоиск водителей")
+        }
+
+        Container_Boundary(b_messaging, "Messaging") {
+            ContainerQueue(kafka, "Kafka", "Event Bus", "Доменные события")
+        }
+    }
+}
+
+System_Ext(yandex_pay, "Яндекс Пэй", "Платёжный шлюз")
+System_Ext(yandex_maps, "Яндекс Карты", "Картографический сервис")
+System_Ext(fcm, "FCM", "Push-сервис Google")
+System_Ext(apns, "APNs", "Push-сервис Apple")
+System_Ext(huawei_push, "Huawei Push Kit", "Push-сервис Huawei")
+System_Ext(bank_api, "API Банка", "Банковские выплаты")
+
+' Вход через WAF
+Rel(passenger, waf, "HTTPS", $tags="new")
+Rel(driver, waf, "HTTPS", $tags="new")
+Rel(corp, waf, "HTTPS", $tags="new")
+Rel(waf, api_gw, "Очищенный трафик", $tags="new")
+
+' Gateway -> Firewall -> сервисы
+Rel(api_gw, fw, "Внутренний вход", $tags="new")
+Rel(fw, booking, "Разрешённые порты", $tags="new")
+Rel(fw, drv, "Разрешённые порты", $tags="new")
+Rel(fw, pricing, "Разрешённые порты", $tags="new")
+Rel(fw, payments, "Разрешённые порты", $tags="new")
+Rel(fw, notify, "Разрешённые порты", $tags="new")
+Rel(fw, geo, "Разрешённые порты", $tags="new")
+Rel(fw, monolith, "Ещё не выделенные пути", $tags="new")
+
+Rel(booking, db_booking, "R/W")
+Rel(drv, db_driver, "R/W")
+Rel(pricing, db_pricing, "R/W")
+Rel(payments, db_payments, "R/W")
+Rel(notify, db_notify, "R/W")
+Rel(geo, db_geo, "R/W")
+Rel(analytics, db_analytics, "R/W")
+Rel(fraud, db_fraud, "R/W")
+Rel(monolith, db_mono, "ORM")
+
+' Shared Data / Messaging / ACL через Firewall
+Rel(booking, fw, "К данным", $tags="new")
+Rel(drv, fw, "К данным", $tags="new")
+Rel(geo, fw, "К данным", $tags="new")
+Rel(pricing, fw, "К данным", $tags="new")
+Rel(payments, fw, "К данным", $tags="new")
+Rel(notify, fw, "К данным", $tags="new")
+Rel(analytics, fw, "К данным", $tags="new")
+Rel(fraud, fw, "К данным", $tags="new")
+
+Rel(fw, redis, "Cache ports", $tags="new")
+Rel(fw, es, "Search ports", $tags="new")
+Rel(fw, kafka, "Kafka ports", $tags="new")
+Rel(fw, acl, "ACL ports", $tags="new")
+Rel(acl, monolith, "Адаптированные вызовы")
+
+Rel(payments, yandex_pay, "Платежи пассажиров")
+Rel(payments, bank_api, "Выплаты водителям")
+Rel(geo, yandex_maps, "Карты")
+Rel(notify, fcm, "Push Android")
+Rel(notify, apns, "Push iOS")
+Rel(notify, huawei_push, "Push Huawei")
+
+@enduml

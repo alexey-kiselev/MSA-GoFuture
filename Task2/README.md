@@ -1,6 +1,6 @@
 # Задание 2. Проектируем Event-Driven архитектуру
 
-**ADR-2: Event-Driven платформа GoFuture**
+**ADR-02: Event-Driven платформа GoFuture**
 
 **Дата:** 2026-10-23
 
