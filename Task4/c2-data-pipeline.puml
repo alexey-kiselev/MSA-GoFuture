@@ -1,0 +1,48 @@
+@startuml c2-data-pipeline
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Пайплайн данных для ML и BI
+
+Person(analyst, "Аналитик")
+Person(ml_eng, "ML Engineer")
+
+System_Boundary(prod, "Production Services") {
+    Container(booking, "Booking + Outbox")
+    Container(drv, "Driver + Outbox")
+    Container(pricing, "Pricing")
+    Container(fraud, "Fraud")
+    Container(payments, "Payments + Outbox")
+}
+
+System_Boundary(stream, "Streaming") {
+    ContainerQueue(kafka, "Kafka")
+    Container(schema, "Schema Registry")
+    Container(flink, "Flink", "Online features")
+    ContainerQueue(dlq, "DLQ", "Bad events")
+}
+
+System_Boundary(batch, "Batch / ML / BI") {
+    Container(airflow, "Airflow", "DAG: train + DQ + marts")
+    Container(ml_store, "Model Store", "Artifacts")
+    ContainerDb(ch, "ClickHouse", "Витрины")
+    Container(datalens, "DataLens", "BI")
+}
+
+Rel(booking, kafka, "Events via outbox")
+Rel(drv, kafka, "Events via outbox")
+Rel(payments, kafka, "Events via outbox")
+Rel(kafka, schema, "Validate")
+Rel(kafka, flink, "Stream")
+Rel(kafka, dlq, "Poison messages")
+Rel(flink, pricing, "Online features")
+Rel(flink, fraud, "Online features")
+Rel(kafka, airflow, "Raw/CDC topics")
+Rel(airflow, ml_store, "Train models")
+Rel(airflow, ch, "Build marts + DQ checks")
+Rel(ml_store, pricing, "Offline model deploy")
+Rel(ml_store, fraud, "Offline model deploy")
+Rel(ch, datalens, "SQL")
+Rel(datalens, analyst, "Dashboards")
+Rel(ml_eng, airflow, "Manage DAGs")
+
+@enduml
