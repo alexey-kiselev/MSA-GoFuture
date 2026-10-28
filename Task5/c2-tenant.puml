@@ -1,0 +1,32 @@
+@startuml c2-tenant
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Мультитенантная платформа
+
+Person(partner_admin, "Админ партнёра")
+Person(driver, "Водитель партнёра")
+Person(sre, "SRE")
+
+System_Boundary(platform, "GoFuture Multi-Tenant Platform") {
+    Container(keycloak, "Keycloak", "OIDC/SSO", "Realm на партнёра")
+    Container(api_gw, "API Gateway", "AuthZ + partner_id")
+    Container(services, "Domain Services")
+    ContainerDb(db_p1, "Partner A DB", "PostgreSQL")
+    ContainerDb(db_p2, "Partner B DB", "PostgreSQL")
+    Container(prom, "Prometheus", "label partner_id")
+    Container(grafana, "Grafana", "Tenant dashboards")
+}
+
+Rel(partner_admin, keycloak, "SSO login")
+Rel(driver, keycloak, "SSO login")
+Rel(partner_admin, api_gw, "HTTPS + token")
+Rel(driver, api_gw, "HTTPS + token")
+Rel(api_gw, keycloak, "Validate JWT")
+Rel(api_gw, services, "partner_id context")
+Rel(services, db_p1, "Partner A only")
+Rel(services, db_p2, "Partner B only")
+Rel(services, prom, "Metrics")
+Rel(prom, grafana, "Query")
+Rel(sre, grafana, "Observe")
+
+@enduml
