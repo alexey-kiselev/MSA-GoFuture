@@ -1,0 +1,42 @@
+@startuml c4-failover
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Failover и точки отказа
+
+Person(user, "Пользователь")
+
+System_Boundary(edge, "Edge") {
+    Container(geodns, "GeoDNS", "DNS", "Переключение региона")
+}
+
+System_Boundary(region_a, "Region A (active)") {
+    Container(gw, "API Gateway")
+    Container(services, "Domain Services")
+    ContainerDb(pg_primary, "PostgreSQL Primary")
+    ContainerDb(pg_replica, "PostgreSQL Sync Replica")
+    ContainerQueue(kafka, "Kafka")
+    Container(cb, "Circuit Breaker", "Resilience", "Оплата / карты")
+}
+
+System_Boundary(region_b, "Region B (standby / pair)") {
+    Container(gw_b, "API Gateway B")
+    ContainerDb(pg_async, "PostgreSQL Async Replica")
+}
+
+System_Ext(pay, "Payment Gateway")
+System_Ext(maps, "Maps API")
+
+Rel(user, geodns, "1. Resolve")
+Rel(geodns, gw, "2. Route to healthy region")
+Rel(gw, services, "3. API")
+Rel(services, pg_primary, "Write")
+Rel(pg_primary, pg_replica, "Sync")
+Rel(services, kafka, "Events")
+Rel(services, cb, "External calls")
+Rel(cb, pay, "Payments")
+Rel(cb, maps, "Maps")
+
+Rel(geodns, gw_b, "Failover DNS")
+Rel(pg_primary, pg_async, "Async (SG pair only)")
+
+@enduml

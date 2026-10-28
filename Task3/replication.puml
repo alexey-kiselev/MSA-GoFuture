@@ -1,0 +1,44 @@
+@startuml replication
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Схема репликации данных между регионами
+
+System_Boundary(ru, "ru-central1 (Yandex Cloud)") {
+    ContainerDb(ru_primary, "PostgreSQL Primary", "RU")
+    note right of ru_primary
+        ПДн и платежи РФ
+        не уходят за пределы страны
+    end note
+    ContainerDb(ru_sync, "PostgreSQL Sync Replica", "RU AZ-2")
+}
+
+System_Boundary(sg, "ap-southeast-1 Singapore (AWS)") {
+    ContainerDb(sg_primary, "PostgreSQL Primary", "SG")
+    ContainerDb(sg_sync, "PostgreSQL Sync Replica", "SG AZ-2")
+}
+
+System_Boundary(jkt, "ap-southeast-3 Jakarta (AWS)") {
+    ContainerDb(jkt_async, "PostgreSQL Async Replica", "JKT")
+}
+
+System_Boundary(br, "sa-east-1 Sao Paulo (AWS)") {
+    ContainerDb(br_primary, "PostgreSQL Primary", "BR")
+    note right of br_primary
+        ПДн и платежи BR
+        не уходят за пределы страны
+    end note
+    ContainerDb(br_sync, "PostgreSQL Sync Replica", "BR AZ-2")
+}
+
+Container(analytics, "Analytics (anonymized events)", "ClickHouse regional")
+
+Rel(ru_primary, ru_sync, "Sync replication", "same country")
+Rel(sg_primary, sg_sync, "Sync replication")
+Rel(sg_primary, jkt_async, "Async replication", "SEA failover pair")
+Rel(br_primary, br_sync, "Sync replication", "same country")
+
+Rel_D(ru_primary, analytics, "Обезличенные события")
+Rel_D(sg_primary, analytics, "Обезличенные события")
+Rel_D(br_primary, analytics, "Обезличенные события")
+
+@enduml

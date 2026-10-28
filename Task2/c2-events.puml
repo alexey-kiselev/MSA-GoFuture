@@ -1,0 +1,79 @@
+@startuml c2-events
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(sre, "SRE")
+
+System_Boundary(platform, "Event-Driven Platform") {
+    Container_Boundary(b_edge, "Edge") {
+        Container(api_gw, "API Gateway", "Kong/Nginx")
+    }
+
+    Container_Boundary(b_domain, "Domain Services") {
+        Container(booking, "Booking Service", "Python + Outbox")
+        Container(drv, "Driver Service", "Python + Outbox")
+        Container(pricing, "Pricing Service", "Python + Outbox")
+        Container(payments, "Payments Service", "Python + Outbox")
+        Container(notify, "Notification Service", "Python")
+        Container(fraud, "Fraud Service", "Python")
+    }
+
+    Container_Boundary(b_stream, "Stream Processing") {
+        Container(flink, "Flink Jobs", "Apache Flink", "Цена и фрод в реальном времени")
+    }
+
+    Container_Boundary(b_messaging, "Messaging") {
+        ContainerQueue(kafka, "Kafka (regional)", "Event Bus", "Топики *.events.<region>, key=tripId")
+        ContainerDb(schema_reg, "Schema Registry", "Avro/JSON Schema")
+    }
+}
+
+System_Boundary(obs, "Observability") {
+    Container_Boundary(b_metrics, "Metrics") {
+        Container(prom, "Prometheus", "Metrics")
+        Container(grafana, "Grafana", "Dashboards")
+        Container(am, "Alertmanager", "Alerts")
+        Container(kexp, "Kafka Exporter", "Exporter")
+        Container(pgexp, "PostgreSQL Exporter", "Exporter")
+    }
+
+    Container_Boundary(b_logs, "Logs") {
+        Container(loki, "Loki", "Logs")
+    }
+
+    Container_Boundary(b_traces, "Traces") {
+        Container(otel, "OTel Collector", "Traces")
+        Container(jaeger, "Jaeger", "Tracing UI")
+    }
+}
+
+Rel(api_gw, booking, "Команды")
+Rel(booking, kafka, "BookingCreated / BookingCancelled")
+Rel(pricing, kafka, "PriceCalculated")
+Rel(drv, kafka, "DriverAssigned / Trip*")
+Rel(payments, kafka, "PaymentCaptured / PaymentFailed")
+Rel(kafka, pricing, "Читает BookingCreated")
+Rel(kafka, drv, "Читает PriceCalculated")
+Rel(kafka, payments, "Читает TripCompleted")
+Rel(kafka, notify, "Читает статусы")
+Rel(kafka, fraud, "Читает события поездки")
+Rel(kafka, flink, "Стрим признаков")
+Rel(flink, pricing, "Онлайн-признаки")
+Rel(flink, fraud, "Онлайн-признаки")
+Rel(booking, schema_reg, "Регистрирует схему")
+Rel(kafka, schema_reg, "Валидация")
+
+Rel(booking, prom, "RED-метрики")
+Rel(drv, prom, "RED-метрики")
+Rel(pricing, prom, "RED-метрики")
+Rel(payments, prom, "RED-метрики")
+Rel(kexp, prom, "Lag / USE")
+Rel(pgexp, prom, "Outbox depth / USE")
+Rel(prom, grafana, "PromQL")
+Rel(prom, am, "Правила")
+Rel(booking, loki, "Логи")
+Rel(booking, otel, "Трейсы")
+Rel(otel, jaeger, "Spans")
+Rel(sre, grafana, "Смотрит")
+Rel(am, sre, "Алерты")
+
+@enduml

@@ -1,0 +1,32 @@
+@startuml c3-onboarding
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Онбординг нового партнёра
+
+Person(partner, "Новый партнёр")
+Person(platform_ops, "Platform Ops")
+
+Container_Boundary(onboarding, "Onboarding Service") {
+    Component(form, "Application Form", "API", "Заявка")
+    Component(compliance, "Compliance Check", "Workflow", "Проверка")
+    Component(provisioner, "Provisioner", "Orchestrator", "Создание ресурсов")
+    Component(inviter, "Inviter", "Mailer", "Приглашение админа")
+}
+
+System_Ext(keycloak, "Keycloak")
+System_Ext(db_mgr, "DB Manager")
+System_Ext(prom, "Prometheus")
+System_Ext(api_reg, "API Client Registry")
+
+Rel(partner, form, "Подаёт заявку")
+Rel(form, compliance, "На проверку")
+Rel(compliance, platform_ops, "Approve / Reject")
+Rel(platform_ops, provisioner, "Approve")
+Rel(provisioner, keycloak, "Create realm + roles")
+Rel(provisioner, db_mgr, "Create partner DB")
+Rel(provisioner, api_reg, "Issue API client")
+Rel(provisioner, prom, "Register partner_id")
+Rel(provisioner, inviter, "Done")
+Rel(inviter, partner, "Invite admin")
+
+@enduml
